@@ -1,3 +1,7 @@
+'''
+A simple extractor for fetching html file features
+'''
+
 from BeautifulSoup import BeautifulSoup as bs
 import jieba.analyse
 
