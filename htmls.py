@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+
 '''
 A simple extractor for fetching html file features
 '''
