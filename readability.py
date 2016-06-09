@@ -76,14 +76,10 @@ def get(url):
             tag[ATTR_XUUID] = uuid
             candidates.append({ATTR_XUUID: uuid, ATTR_SCORE: s})
             
-        with open('test.basic.html', 'w') as f:
-            f.write(html.prettify())
-
         # find top n candicates & filter <= scores
         topn = filter(
             lambda _x : _x[ATTR_SCORE] > 0.0,
             sorted(candidates, key=lambda item : item[ATTR_SCORE], reverse=True))[0:RS['candidates']['topn']]
-        print topn
         
         # recusive to top, find for the ancestor with bigger score
         while True:
@@ -124,7 +120,6 @@ def get(url):
                 break
 
             topn = tmp
-            print topn
             
         # update scores of the tree
         for item in topn:
@@ -132,14 +127,10 @@ def get(url):
             if tag:
                 tag[ATTR_SCORE] = item[ATTR_SCORE]
 
-        with open('test.final.html', 'w') as f:
-            f.write(html.prettify())
 
         best = reduce(lambda x, y : x if x[ATTR_SCORE] > y[ATTR_SCORE] else y, topn)
         content = html.find(attrs={ATTR_XUUID: best[ATTR_XUUID]})
 
-        print best
-            
         # pretty best
         for tag in content.findAll():
             del (tag['class'], tag['id'], tag['style'])
@@ -153,9 +144,6 @@ def get(url):
                 if not filter(lambda x : re.search(settings.READABILITY['vedio'], x[1], re.I), tag.attrs):
                     tag.extract()
 
-        with open('test.html', 'w') as f:
-            f.write(content.prettify())
-                    
         return {'title': title,
                 'content': {
                     'html': content.prettify(),
