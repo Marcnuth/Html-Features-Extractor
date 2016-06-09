@@ -11,13 +11,14 @@ sys.setdefaultencoding('utf8')
 
 
 from BeautifulSoup import BeautifulSoup as bs
-import jieba.analyse
+import jieba, jieba.analyse
 import re, requests
 
 #constant features name string
 FT_VEDIO_FLAG = 'is_vedio_included'
 FT_WORD_COUNT = 'word_count'
 FT_TOPN_KEY_WORDS = 'topn_keywords'
+FT_TITLE_KEY_WORDS = 'title_keywords'
 FT_ARTICLE_FLAG = 'is_article'
 FT_ARTICLE_LIST_FLAG = 'is_article_list'
 
@@ -45,6 +46,17 @@ only get top n Noun. key words. Default n is 10
 def get_topn_keywords(hbs, n=10):
     _text = hbs.getText('\n')
     return jieba.analyse.extract_tags(_text, topK=n, allowPOS=('n'))
+
+'''
+get title key words
+'''
+def get_title_keywords(hbs):
+    _title = hbs.title
+    if not _title or not _title.text.strip():
+        return []
+
+    return [_i for _i in jieba.cut(_title.text.strip(), cut_all=False)]
+    
 
 '''
 we will see a passage as a non-article everytime we found the tile of html is not show in body
@@ -106,6 +118,7 @@ def get_features(url, hbs, n=10):
         FT_VEDIO_FLAG: is_vedio_included(hbs),
         FT_WORD_COUNT: count_word(hbs),
         FT_TOPN_KEY_WORDS: get_topn_keywords(hbs, n),
+        FT_TITLE_KEY_WORDS : get_title_keywords(hbs),
         FT_ARTICLE_FLAG: is_article(url, hbs),
         FT_ARTICLE_LIST_FLAG: is_article_list(url, hbs)
     }
