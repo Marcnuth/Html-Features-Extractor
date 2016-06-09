@@ -4,6 +4,10 @@ This file offer api to fetch url's content.
 
 '''
 
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
 from settings import READABILITY as RS
 
 import requests
@@ -12,48 +16,49 @@ import re
 import math
 import urlparse
 from uuid import uuid4 as genid
-
-from BeautifulSoup import BeautifulSoup as bs
-
+from BeautifulSoup import  BeautifulSoup as bs, Tag
+import numpy as np
 
 ATTR_SCORE = '_xscore'
 ATTR_XUUID = '_xuuid'
 
     
-def grabArticle(url):
+def get(url):
 
     try :
         get = requests.get(url)
         get.raise_for_status()
             
-        candidates = {}
+        candidates = []
         html = bs(get.content)
         
         title = html.find('title').text
 
         # remove useless
         # we cannot delete this together with evaluating score, becasue findAll does not delete its tag in its loop
+        # following will be removed:
+        # 1. useless name
+        # 2. useless id and not include a useful value
+        # 3. uselesss class and not include a useful value
+        # 4. empty a/img/p
         [tag.extract() for tag in html.findAll() if re.search(RS['useless']['name'], tag.name, re.I) or \
                                                     (tag.get('id')
                                                      and re.search(RS['useless']['id'], tag['id'], re.I)
                                                      and not re.search(RS['useful']['id'], tag['id'], re.I)) or \
                                                     (tag.get('class')
                                                      and re.search(RS['useless']['class'], tag['class'], re.I)
-                                                     and not re.search(RS['useful']['class'], tag['class'], re.I))]
+                                                     and not re.search(RS['useful']['class'], tag['class'], re.I)) or \
+                                                    (tag.name == 'img' and not tag.get('src')) or \
+                                                    (tag.name == 'a' and not tag.get('href')) or \
+                                                    (tag.name == 'p' and not tag.text)
+        ]
             
         for tag in html.findAll():
-            
-            # simplify tag names
-            for item in RS['simplify']:
-                tag.name = item['to'] if re.search(item['from'], tag.name, re.I) else tag.name
-
-            # add uuid to tag
-            uuid = str(genid())
-            
+                
             # calculate basic score
             s = 0
-            s += len(re.findall(ur'[,.，。]', tag.text)) if tag.name == 'p' else 0
-            s += min(math.floor(len(tag.text) / 100.0), 3.0) if tag.name == 'p' else 0
+            s += len(re.findall(ur'[,.;，。；]', ''.join(filter(lambda x: type(x)!=Tag, tag.contents))))
+            s += min(math.floor(len(tag.text) / 100.0), 3.0)
 
             for item in RS['score']['init']:
                 s += item['score'] if re.search(item['name'], tag.name, re.I) else 0
@@ -61,39 +66,79 @@ def grabArticle(url):
             for key,value in tag.attrMap.iteritems() :
                 for item in RS['score']['addition']:
                     s += item['score'] if re.search(item['key'], key, re.I) and re.search(item['value'], value, re.I) else 0
-            
+
+            # multiple the links ratio
+            links =  [item for item in tag.contents if type(item)==Tag and item.name in ['a', 'img']]
+            s *= (1 - len(links) * 1.0 / max(len(tag.text), 1.0))
+
+            uuid = str(genid())
             tag[ATTR_SCORE] = s
-
-            if tag.name == 'p':
-                tag[ATTR_XUUID] = uuid
-                candidates[uuid] = s
-                
-
-                    
-        # add more score to every candicate
-        for uuid, score in candidates.iteritems():
-            tag = html.find(attrs={ATTR_XUUID: uuid})
-            if tag.parent and tag.parent.get(ATTR_XUUID):
-                candidates[tag.parent[ATTR_XUUID]] += score
-                if tag.parent.parent and tag.parent.parent.get(ATTR_XUUID):
-                    candidates[tag.parent.parent[ATTR_XUUID]] += (score / 2.0)
+            tag[ATTR_XUUID] = uuid
+            candidates.append({ATTR_XUUID: uuid, ATTR_SCORE: s})
             
-        # add weight of link density
-        for uuid, score in candidates.iteritems():
-            tag = html.find(attrs={ATTR_XUUID: uuid})
-            candidates[uuid] = score * (1 - len(tag.findAll('a')) * 1.0 / max(len(tag.text), 1))
-                    
+        with open('test.basic.html', 'w') as f:
+            f.write(html.prettify())
+
+        # find top n candicates & filter <= scores
+        topn = filter(
+            lambda _x : _x[ATTR_SCORE] > 0.0,
+            sorted(candidates, key=lambda item : item[ATTR_SCORE], reverse=True))[0:RS['candidates']['topn']]
+        print topn
+        
+        # recusive to top, find for the ancestor with bigger score
+        while True:
+            tmp = []
+            newadd = False
+         
+            for item in topn:
+         
+                tag = html.find(attrs={ATTR_XUUID: item[ATTR_XUUID]})
+
+                # we won't use whole html
+                if tag.name == 'html':
+                    continue
+
+                # if this is directly child of html tag, we won't search for its ancestor
+                if tag.parent.name == 'html':
+                    tmp.append(item)
+                    continue
+
+                # if current tags's parent have already exist, we will add score
+                same = [_i for _i, _v in enumerate(tmp) if _v[ATTR_XUUID]==item[ATTR_XUUID]]
+                if same:
+                    tmp[same[0]][ATTR_SCORE] += item[ATTR_SCORE]
+                    continue
+
+                # if the std is bigger than config, just keep current tag
+                siblings = tag.parent.findChildren()
+                scores = [_i[ATTR_SCORE] for _i in siblings]
+                if np.array(scores).std() > RS['candidates']['std']:
+                    tmp.append(item)
+                    continue
+
+                # everything seems good, add its parent instead of itself
+                newadd = True
+                tmp.append({ATTR_XUUID: tag.parent[ATTR_XUUID], ATTR_SCORE: tag.parent[ATTR_SCORE] + item[ATTR_SCORE]})
+
+            if not newadd:
+                break
+
+            topn = tmp
+            print topn
+            
         # update scores of the tree
-        for uuid, score in candidates.iteritems():
-            tag = html.find(attrs={ATTR_XUUID: uuid})
+        for item in topn:
+            tag = html.find(attrs={ATTR_XUUID: item[ATTR_XUUID]})
             if tag:
-                tag[ATTR_SCORE] = score
+                tag[ATTR_SCORE] = item[ATTR_SCORE]
 
-        best = reduce(lambda x, y : x if x[1] > y[1] else y, candidates.iteritems())
+        with open('test.final.html', 'w') as f:
+            f.write(html.prettify())
 
-        print 'best:' + str(best)
-        content = html.find(attrs={ATTR_XUUID: best[0]})
+        best = reduce(lambda x, y : x if x[ATTR_SCORE] > y[ATTR_SCORE] else y, topn)
+        content = html.find(attrs={ATTR_XUUID: best[ATTR_XUUID]})
 
+        print best
             
         # pretty best
         for tag in content.findAll():
@@ -102,19 +147,29 @@ def grabArticle(url):
             if tag.name.lower() in ['iframe', 'form']:
                 tag.extract()
             elif tag.name == 'img':
-                if not img['src']:
-                    img.extract()
-                else:
-                    img['src'] = urlparse.urljoin(url, img['src'])
+                tag['src'] = urlparse.urljoin(url, tag['src'])
 
             elif tag.name.lower() == 'object' or tag.name.lower() == 'embed':
                 if not filter(lambda x : re.search(settings.READABILITY['vedio'], x[1], re.I), tag.attrs):
                     tag.extract()
 
-             
-        return {'title': title, 'content': content.prettify()}
+        with open('test.html', 'w') as f:
+            f.write(content.prettify())
+                    
+        return {'title': title,
+                'content': {
+                    'html': content.prettify(),
+                    'pure': clean(content.prettify()),
+                    'len': len(clean(content.prettify()).decode('utf-8'))
+                }
+        }
 
     finally:
         get.close()
 
         
+def clean(htmls):
+    non_tags = re.sub(r'</?[^>]*/?>', '', htmls)
+    non_space = re.sub(r'\s+', '', non_tags)
+
+    return non_space

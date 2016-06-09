@@ -4,6 +4,11 @@ READABILITY = {
 
     'vedio': r'(http(s)?://(www.)?(youku|youtube|vimeo).com|.swf|.mp4|.mpeg4|.ogg)',
 
+    'candidates' : {
+        'topn': 50,
+        'std': 30
+    },
+    
     # score for evaluating tag
     'score': {
         'init': [
@@ -38,17 +43,11 @@ READABILITY = {
         ]
     },
 
-    # simplify all kinds of to common flag
-    'simplify' : [
-        {
-            'from': r'(a|blockquote|dl|div|img|ol|p|pre|table|ul)',
-            'to': 'p'
-        }
-    ],
-    
+
+
     # useless name have one or more following flags
     'useless' : {
-        'name': r'(script|style|link)',
+        'name': r'(nav|form|script|style|link|footer|aside)',
         'id': r'(combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter)',
         'class': r'(combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter)',
     },
