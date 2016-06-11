@@ -11,7 +11,7 @@ sys.setdefaultencoding('utf8')
 
 
 from BeautifulSoup import BeautifulSoup as bs
-import jieba, jieba.analyse
+import jieba, jieba.analyse, jieba.posseg
 import re, requests
 
 #constant features name string
@@ -45,7 +45,7 @@ only get top n Noun. key words. Default n is 10
 '''
 def get_topn_keywords(hbs, n=10):
     _text = hbs.getText('\n')
-    return jieba.analyse.extract_tags(_text, topK=n, allowPOS=('n'))
+    return jieba.analyse.extract_tags(_text, topK=n, allowPOS=('n', 'eng'))
 
 '''
 get title key words
@@ -55,7 +55,7 @@ def get_title_keywords(hbs):
     if not _title or not _title.text.strip():
         return []
 
-    return [_i for _i in jieba.cut(_title.text.strip(), cut_all=False)]
+    return [_i for _i, _j in jieba.posseg.cut(_title.text.strip()) if _j in ['n', 'eng']]
     
 
 '''
