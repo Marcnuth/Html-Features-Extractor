@@ -10,7 +10,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 
-from BeautifulSoup import BeautifulSoup as bs
+from bs4 import BeautifulSoup as bs
 import jieba, jieba.analyse, jieba.posseg
 import re, requests
 
@@ -95,19 +95,19 @@ def is_article_list(url, hbs):
 
     for tag in hbs.findAll():
         if re.match(r'^[\s\d]+$', tag.text):
-            _prev = tag.previousSibling
-            if _prev and re.match(r'^[\s\d]+$', _prev.text):
+            _prev = tag.find_previous_sibling()
+            if _prev  and re.match(r'^[\s\d]+$', _prev.text):
                 return True
 
-            _next = tag.netSibling
+            _next = tag.find_next_sibling()
             if _next and re.match(r'^[\s\d]+$', _next.text):
                 return True
     
-    _h1s = a.findAll(name=['h1'])
+    _h1s = hbs.findAll(name=['h1'])
     if _h1s and len(_h1s) > 2:
         return True
 
-    _h2s = a.findAll(name=['h2'])
+    _h2s = hbs.findAll(name=['h2'])
     if not _h1s and _h2s and len(_h2s) > 2:
         return True
 
