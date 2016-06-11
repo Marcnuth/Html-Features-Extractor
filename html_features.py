@@ -43,19 +43,19 @@ def count_word(hbs):
 '''
 only get top n Noun. key words. Default n is 10
 '''
-def get_topn_keywords(hbs, n=10):
+def get_topn_keywords(hbs, n=10, pos=('n', 'nz', 'nt', 'l')):
     _text = hbs.getText('\n')
-    return jieba.analyse.extract_tags(_text, topK=n, allowPOS=('n', 'eng'))
+    return jieba.analyse.extract_tags(_text, topK=n, allowPOS=pos)
 
 '''
 get title key words
 '''
-def get_title_keywords(hbs):
+def get_title_keywords(hbs, pos=('n', 'nz', 'nt', 'l')):
     _title = hbs.title
     if not _title or not _title.text.strip():
         return []
 
-    return [_i for _i, _j in jieba.posseg.cut(_title.text.strip()) if _j in ['n', 'eng']]
+    return [_i for _i, _j in jieba.posseg.cut(_title.text.strip()) if _j in pos]
     
 
 '''
@@ -113,12 +113,15 @@ def is_article_list(url, hbs):
 
     return False
 
-def get_features(url, hbs, n=10):
+def get_features(url, hbs, n=10, pos=('n', 'nz', 'nt', 'l'), dictfile):
+    if dictfile:
+         jieba.load_userdict(dictfile)
+    
     return {
         FT_VEDIO_FLAG: is_vedio_included(hbs),
         FT_WORD_COUNT: count_word(hbs),
-        FT_TOPN_KEY_WORDS: get_topn_keywords(hbs, n),
-        FT_TITLE_KEY_WORDS : get_title_keywords(hbs),
+        FT_TOPN_KEY_WORDS: get_topn_keywords(hbs, n, pos),
+        FT_TITLE_KEY_WORDS : get_title_keywords(hbs, pos),
         FT_ARTICLE_FLAG: is_article(url, hbs),
         FT_ARTICLE_LIST_FLAG: is_article_list(url, hbs)
     }
