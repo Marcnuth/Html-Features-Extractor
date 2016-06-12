@@ -113,7 +113,7 @@ def is_article_list(url, hbs):
 
     return False
 
-def get_features(url, hbs, n=10, pos=('n', 'nz', 'nt', 'l'), dictfile):
+def get_features(url, hbs, dictfile=None, n=10, pos=('n', 'nz', 'nt', 'l')):
     if dictfile:
          jieba.load_userdict(dictfile)
     
